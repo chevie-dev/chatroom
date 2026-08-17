@@ -1,4 +1,9 @@
 ﻿using api.Data;
+using api.Repositories.Implementations;
+using api.Repositories.Interfaces;
+using api.Services;
+using api.Services.Implementations;
+using api.Services.Interfaces;
 using api.Validations.Auth;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -11,6 +16,16 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddServices(this IServiceCollection services, ConfigurationManager configuration)
     {
+        // DI Injections
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IAuthService, AuthService>();
+
+
+        services.AddFluentValidationAutoValidation();
+        // Validations
+        services.AddValidatorsFromAssemblyContaining<UserRegisterRequestValidator>();
+
+
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         services.AddOpenApi();
         services.AddControllers();
@@ -37,9 +52,6 @@ public static class ServiceCollectionExtensions
 
         services.AddAuthorization();
 
-        services.AddFluentValidationAutoValidation();
-        // Validations
-        services.AddValidatorsFromAssemblyContaining<UserRegisterRequestValidator>();
 
         return services;
     }

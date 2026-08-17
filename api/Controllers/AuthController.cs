@@ -1,9 +1,10 @@
-﻿using api.Data;
+﻿using api.Exceptions;
 using api.Models.Auth;
+using api.Repositories.Implementations;
+using api.Services.Implementations;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -14,55 +15,50 @@ namespace api.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly AppDbContext _db;
     private readonly PasswordHasher<User> _hasher = new();
+    private readonly AuthService _authService;
 
-    public AuthController(AppDbContext db)
+    public AuthController(AuthService authService)
     {
-        _db = db;
+        this._authService = authService;
     }
 
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] UserRegisterRequest request)
     {
-        if (await _db.Users.AnyAsync(u => u.Username == request.Username))
+        try
         {
-            return Conflict("Username already taken.");
+            await _authService.Register(request);
+            return Ok();
         }
-
-        var user = new User { Username = request.Username };
-        user.PasswordHash = _hasher.HashPassword(user, request.Password);
-
-        _db.Users.Add(user);
-        await _db.SaveChangesAsync();
-
-        return Ok();
+        catch (UsernameTakenException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] UserLoginRequest request)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
-        if (user is null)
+        try
         {
-            return Unauthorized();
+            var user = await _authService.Login(request);
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
+            };
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+
+            return Ok();
+
         }
-
-        var result = _hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
-        if (result == PasswordVerificationResult.Failed)
+        catch (InvalidCredentialsException ex)
         {
-            return Unauthorized();
+            return Unauthorized(ex.Message);
         }
-
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
-        };
-        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
-
-        return Ok();
     }
 
     [HttpPost("logout")]
