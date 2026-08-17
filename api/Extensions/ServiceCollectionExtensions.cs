@@ -1,4 +1,7 @@
 ﻿using api.Data;
+using api.Validations.Auth;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,6 +21,7 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
+        // Authentication
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
         .AddCookie(options =>
         {
@@ -32,6 +36,10 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddAuthorization();
+
+        services.AddFluentValidationAutoValidation();
+        // Validations
+        services.AddValidatorsFromAssemblyContaining<UserRegisterRequestValidator>();
 
         return services;
     }
